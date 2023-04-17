@@ -81,10 +81,8 @@ def check_response(response):
         raise TypeError('Ответ не ввиде словаря!')
     homeworks = response.get('homeworks')
     current_dates = response.get('current_date')
-    if homeworks is None:
-        raise ValueError('Ответ не содержит значение Homeworks')
-    if current_dates is None:
-        raise ValueError('Ответ не содержит значение current_date')
+    if homeworks is None or current_dates is None:
+        raise ValueError('Отсутсвует значение Homeworks или current_date')
     if not isinstance(homeworks, list):
         logger.info('Ответ не ввиде списка!')
         raise TypeError('Ответ не ввиде списка!')

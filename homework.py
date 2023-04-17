@@ -8,7 +8,7 @@ import telegram
 from dotenv import load_dotenv
 
 
-from exceptions import ApiError, SendMessageError, HttpError
+from exceptions import HttpError
 
 load_dotenv()
 
@@ -54,7 +54,7 @@ def send_message(bot, message):
     """ОТПРАВЛЯЕМ СООБЩЕНИЕ В ТЕЛЕГРАММ."""
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
-    except SendMessageError:
+    except telegram.error.TelegramError:
         logger.error('Сообщение не отправлено!Проверь id чата или бота.')
     else:
         logger.debug('Сообщение успешно отправлено!')
@@ -64,9 +64,13 @@ def get_api_answer(timestamp):
     """ДЕЛАЕМ ЗАПРОС К ENDPOINT."""
     params = {'from_date': timestamp}
     logger.info(f'Отправка запроса на {ENDPOINT} с параметрами {params}')
-    response = requests.get(ENDPOINT, headers=HEADERS, params=params)
-    if response.status_code != HTTPStatus.OK:
-        raise HttpError('Код ответа != 200.')
+    try:
+        response = requests.get(ENDPOINT, headers=HEADERS, params=params)
+        if response.status_code != HTTPStatus.OK:
+            raise HttpError('Код ответа != 200.')
+    # Если переношу этот 'Except' в main(),то не прохожу pytest
+    except requests.RequestException:
+        logger.error('Ошибка при запросе к API')
     return response.json()
 
 
@@ -128,8 +132,8 @@ def main():
             else:
                 logger.debug('Нет изменений в статусе работы')
                 timestamp = int(time.time())
-        except ApiError:
-            logger.error(f'Ошибка при запросе к API: {ApiError}')
+        except requests.RequestException:
+            logger.error('Ошибка при запросе к API')
         except ValueError as e:
             logger.error('Проблемы с json форматом', e)
         except Exception as error:

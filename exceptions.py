@@ -1,9 +1,3 @@
-class SendMessageError(Exception):
-    """Проблема с отправкой сообщения."""
-
-    pass
-
-
 class HttpError(Exception):
     """Ошибка http запроса."""
 

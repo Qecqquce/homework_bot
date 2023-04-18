@@ -7,8 +7,7 @@ import requests
 import telegram
 from dotenv import load_dotenv
 
-
-from exceptions import HttpError
+from exceptions import ApiError, HttpError
 
 load_dotenv()
 
@@ -42,12 +41,11 @@ HOMEWORK_VERDICTS = {
 
 def check_tokens():
     """ПРОВЕРЯЕМ ДОСТУПНОСТЬ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ."""
-    for token in [{'PRACTICUM_TOKEN': PRACTICUM_TOKEN,
-                   'TELEGRAM_TOKEN': TELEGRAM_TOKEN,
-                   'TELEGRAM_CHAT_ID': TELEGRAM_CHAT_ID}]:
-        if None in token.values():
-            logger.critical(f'Отсутствует переменная окружения {token}')
-            raise SystemExit('Проверь токены!')
+    if None in [PRACTICUM_TOKEN,
+                TELEGRAM_TOKEN,
+                TELEGRAM_CHAT_ID]:
+        logger.critical('Отсутствует переменная окружения!')
+        raise SystemExit('Проверь токены!')
 
 
 def send_message(bot, message):
@@ -68,9 +66,8 @@ def get_api_answer(timestamp):
         response = requests.get(ENDPOINT, headers=HEADERS, params=params)
         if response.status_code != HTTPStatus.OK:
             raise HttpError('Код ответа != 200.')
-    # Если переношу этот 'Except' в main(),то не прохожу pytest
-    except requests.RequestException:
-        logger.error('Ошибка при запросе к API')
+    except requests.RequestException as r:
+        raise ApiError from r
     return response.json()
 
 
@@ -81,10 +78,12 @@ def check_response(response):
         raise TypeError('Ответ не ввиде словаря!')
     homeworks = response.get('homeworks')
     current_dates = response.get('current_date')
-    if homeworks is None or current_dates is None:
-        raise ValueError('Отсутсвует значение Homeworks или current_date')
+    if homeworks is None:
+        raise ValueError('Отсутсвует значение Homeworks')
+    if current_dates is None:
+        logger.info('Отсутствует ключ "current_dates"')
     if not isinstance(homeworks, list):
-        logger.info('Ответ не ввиде списка!')
+        logger.error('Ответ не ввиде списка!')
         raise TypeError('Ответ не ввиде списка!')
     return homeworks
 
@@ -92,8 +91,8 @@ def check_response(response):
 def parse_status(homework: dict) -> str:
     """ИЗВЛЕКАЕТ СТАТУС ДОМАШНЕЙ РАБОТЫ."""
     if not homework.get('homework_name'):
-        logger.warning('Отсутствует имя домашней работы.')
-        raise KeyError
+        logger.error('Отсутствует имя домашней работы.')
+        raise KeyError('Отсутствует ключ "homework_name"')
     homework_name = homework.get('homework_name')
 
     homework_status = homework.get('status')
@@ -130,16 +129,18 @@ def main():
             else:
                 logger.debug('Нет изменений в статусе работы')
                 timestamp = int(time.time())
-        except requests.RequestException:
+        except ApiError:
             logger.error('Ошибка при запросе к API')
         except ValueError as e:
-            logger.error('Проблемы с json форматом', e)
+            message = 'Проблемы с json форматом'
+            logger.error(message, e)
+            send_message(bot, message)
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             if message != old_message:
                 old_message = message
                 send_message(bot, message)
-            logger.error(message)
+            logger.error(message, bot)
         finally:
             time.sleep(RETRY_PERIOD)
 

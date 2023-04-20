@@ -7,7 +7,7 @@ import requests
 import telegram
 from dotenv import load_dotenv
 
-from exceptions import ApiError, HttpError
+from exceptions import ApiError, HttpError, JsonError
 
 load_dotenv()
 
@@ -41,10 +41,12 @@ HOMEWORK_VERDICTS = {
 
 def check_tokens():
     """ПРОВЕРЯЕМ ДОСТУПНОСТЬ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ."""
-    if None in [PRACTICUM_TOKEN,
-                TELEGRAM_TOKEN,
-                TELEGRAM_CHAT_ID]:
-        logger.critical('Отсутствует переменная окружения!')
+    tokens = (PRACTICUM_TOKEN,
+              TELEGRAM_TOKEN,
+              TELEGRAM_CHAT_ID)
+    if not all(tokens):
+        logger.critical('Отсутствует переменная окружения!\n'
+                        f'({locals()["tokens"]}')
         raise SystemExit('Проверь токены!')
 
 
@@ -67,24 +69,26 @@ def get_api_answer(timestamp):
         if response.status_code != HTTPStatus.OK:
             raise HttpError('Код ответа != 200.')
     except requests.RequestException as r:
-        raise ApiError from r
+        raise ApiError('Ошибка подключения к API') from r
+    except ValueError as e:
+        raise JsonError('Проблемы с json форматом') from e
     return response.json()
 
 
 def check_response(response):
     """ПРОВЕРЯЕМ ОТВЕТ API НА КОРРЕКТНОСТЬ."""
     if not isinstance(response, dict):
-        logger.info('Некорректный ответ от API!')
         raise TypeError('Ответ не ввиде словаря!')
     homeworks = response.get('homeworks')
     current_dates = response.get('current_date')
     if homeworks is None:
         raise ValueError('Отсутсвует значение Homeworks')
     if current_dates is None:
-        logger.info('Отсутствует ключ "current_dates"')
+        logger.error('Отсутствует ключ "current_dates"')
     if not isinstance(homeworks, list):
-        logger.error('Ответ не ввиде списка!')
         raise TypeError('Ответ не ввиде списка!')
+    if not isinstance(current_dates, int):
+        raise TypeError('Ответ не ввиде числа!')
     return homeworks
 
 
@@ -129,12 +133,12 @@ def main():
             else:
                 logger.debug('Нет изменений в статусе работы')
                 timestamp = int(time.time())
-        except ApiError:
-            logger.error('Ошибка при запросе к API')
-        except ValueError as e:
-            message = 'Проблемы с json форматом'
-            logger.error(message, e)
-            send_message(bot, message)
+        except ApiError as a:
+            logger.error(a)
+            send_message(bot, a)
+        except JsonError as j:
+            logger.error(j)
+            send_message(bot, j)
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             if message != old_message:

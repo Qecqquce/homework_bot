@@ -20,3 +20,9 @@ class JsonError(Exception):
     """Проблемы с JSON."""
 
     pass
+
+
+class CurrentDateError(Exception):
+    """Отсутствует ключ "current_dates" или ответ не ввиде числа."""
+
+    pass

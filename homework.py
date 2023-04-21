@@ -7,7 +7,7 @@ import requests
 import telegram
 from dotenv import load_dotenv
 
-from exceptions import ApiError, HttpError, JsonError
+from exceptions import ApiError, HttpError, JsonError, CurrentDateError
 
 load_dotenv()
 
@@ -38,15 +38,16 @@ HOMEWORK_VERDICTS = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
+globals()['TELEGRAM_TOKEN']
+
 
 def check_tokens():
     """ПРОВЕРЯЕМ ДОСТУПНОСТЬ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ."""
-    tokens = (PRACTICUM_TOKEN,
-              TELEGRAM_TOKEN,
-              TELEGRAM_CHAT_ID)
-    if not all(tokens):
-        logger.critical('Отсутствует переменная окружения!\n'
-                        f'({locals()["tokens"]}')
+    tokens = ['PRACTICUM_TOKEN', 'TELEGRAM_TOKEN', 'TELEGRAM_CHAT_ID']
+    missing_tokens = [k for k in tokens if globals().get(k) is None]
+    print(missing_tokens)
+    if missing_tokens:
+        logger.critical(f'Отсутствует переменная окружения! {missing_tokens}')
         raise SystemExit('Проверь токены!')
 
 
@@ -68,10 +69,10 @@ def get_api_answer(timestamp):
         response = requests.get(ENDPOINT, headers=HEADERS, params=params)
         if response.status_code != HTTPStatus.OK:
             raise HttpError('Код ответа != 200.')
-    except requests.RequestException as r:
-        raise ApiError('Ошибка подключения к API') from r
-    except ValueError as e:
-        raise JsonError('Проблемы с json форматом') from e
+    except ValueError as value_error:
+        raise JsonError('Проблемы с json форматом') from value_error
+    except requests.RequestException as request_error:
+        raise ApiError('Ошибка подключения к API') from request_error
     return response.json()
 
 
@@ -84,18 +85,17 @@ def check_response(response):
     if homeworks is None:
         raise ValueError('Отсутсвует значение Homeworks')
     if current_dates is None:
-        logger.error('Отсутствует ключ "current_dates"')
+        raise CurrentDateError
     if not isinstance(homeworks, list):
         raise TypeError('Ответ не ввиде списка!')
     if not isinstance(current_dates, int):
-        raise TypeError('Ответ не ввиде числа!')
+        raise CurrentDateError
     return homeworks
 
 
 def parse_status(homework: dict) -> str:
     """ИЗВЛЕКАЕТ СТАТУС ДОМАШНЕЙ РАБОТЫ."""
     if not homework.get('homework_name'):
-        logger.error('Отсутствует имя домашней работы.')
         raise KeyError('Отсутствует ключ "homework_name"')
     homework_name = homework.get('homework_name')
 
@@ -133,12 +133,14 @@ def main():
             else:
                 logger.debug('Нет изменений в статусе работы')
                 timestamp = int(time.time())
-        except ApiError as a:
-            logger.error(a)
-            send_message(bot, a)
-        except JsonError as j:
-            logger.error(j)
-            send_message(bot, j)
+        except ApiError:
+            logger.error(ApiError)
+            send_message(bot, ApiError)
+        except JsonError:
+            logger.error(JsonError)
+            send_message(bot, JsonError)
+        except CurrentDateError:
+            logger.error(CurrentDateError)
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             if message != old_message:

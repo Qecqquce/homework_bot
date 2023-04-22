@@ -11,8 +11,8 @@ from exceptions import ApiError, HttpError, JsonError, CurrentDateError
 
 load_dotenv()
 
-PRACTICUM_TOKEN = os.getenv('TOKEN_YANDEX')
-TELEGRAM_TOKEN = os.getenv('TOKEN_TELEGRAM')
+PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 RETRY_PERIOD = 600

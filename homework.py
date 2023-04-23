@@ -7,7 +7,11 @@ import requests
 import telegram
 from dotenv import load_dotenv
 
-from exceptions import ApiError, HttpError, JsonError, CurrentDateError
+from exceptions import (ApiError,
+                        HttpError,
+                        JsonError,
+                        CurrentDateError,
+                        HomeworkStatusError)
 
 load_dotenv()
 
@@ -44,8 +48,7 @@ globals()['TELEGRAM_TOKEN']
 def check_tokens():
     """ПРОВЕРЯЕМ ДОСТУПНОСТЬ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ."""
     tokens = ['PRACTICUM_TOKEN', 'TELEGRAM_TOKEN', 'TELEGRAM_CHAT_ID']
-    missing_tokens = [k for k in tokens if globals().get(k) is None]
-    print(missing_tokens)
+    missing_tokens = [key for key in tokens if globals().get(key) is None]
     if missing_tokens:
         logger.critical(f'Отсутствует переменная окружения! {missing_tokens}')
         raise SystemExit('Проверь токены!')
@@ -64,13 +67,12 @@ def send_message(bot, message):
 def get_api_answer(timestamp):
     """ДЕЛАЕМ ЗАПРОС К ENDPOINT."""
     params = {'from_date': timestamp}
-    logger.info(f'Отправка запроса на {ENDPOINT} с параметрами {params}')
     try:
         response = requests.get(ENDPOINT, headers=HEADERS, params=params)
         if response.status_code != HTTPStatus.OK:
             raise HttpError('Код ответа != 200.')
-    except ValueError as value_error:
-        raise JsonError('Проблемы с json форматом') from value_error
+        if not response.json():
+            raise JsonError('Проблемы с json форматом')
     except requests.RequestException as request_error:
         raise ApiError('Ошибка подключения к API') from request_error
     return response.json()
@@ -89,26 +91,24 @@ def check_response(response):
     if not isinstance(homeworks, list):
         raise TypeError('Ответ не ввиде списка!')
     if not isinstance(current_dates, int):
-        raise CurrentDateError
+        raise CurrentDateError('Отсутствует ключ "current_dates"'
+                               'или ответ не ввиде числа.')
     return homeworks
 
 
 def parse_status(homework: dict) -> str:
     """ИЗВЛЕКАЕТ СТАТУС ДОМАШНЕЙ РАБОТЫ."""
-    if not homework.get('homework_name'):
+    if homework.get('homework_name') is None:
         raise KeyError('Отсутствует ключ "homework_name"')
     homework_name = homework.get('homework_name')
 
     homework_status = homework.get('status')
     if 'status' not in homework:
-        message = 'Отсутстует ключ homework_status.'
-        logging.error(message)
+        raise HomeworkStatusError('Отсутстует ключ homework_status.')
 
     verdict = HOMEWORK_VERDICTS.get(homework_status)
     if homework_status not in HOMEWORK_VERDICTS:
-        message = 'Неизвестный статус домашней работы'
-        logger.error(message)
-        raise ValueError(message)
+        raise ValueError('Неизвестный статус домашней работы')
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
@@ -117,10 +117,11 @@ def main():
     old_message = ''
     check_tokens()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    timestamp = int(time.time())
     while True:
-        timestamp = int(time.time())
         try:
             response = get_api_answer(timestamp)
+            timestamp = response.get('current_date', timestamp)
             homeworks = check_response(response)
             if homeworks:
                 homework = homeworks[0]
@@ -133,12 +134,6 @@ def main():
             else:
                 logger.debug('Нет изменений в статусе работы')
                 timestamp = int(time.time())
-        except ApiError:
-            logger.error(ApiError)
-            send_message(bot, ApiError)
-        except JsonError:
-            logger.error(JsonError)
-            send_message(bot, JsonError)
         except CurrentDateError:
             logger.error(CurrentDateError)
         except Exception as error:

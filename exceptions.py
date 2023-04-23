@@ -16,7 +16,7 @@ class TokenError(Exception):
     pass
 
 
-class JsonError(Exception):
+class JsonError(ValueError):
     """Проблемы с JSON."""
 
     pass
@@ -24,5 +24,11 @@ class JsonError(Exception):
 
 class CurrentDateError(Exception):
     """Отсутствует ключ "current_dates" или ответ не ввиде числа."""
+
+    pass
+
+
+class HomeworkStatusError(Exception):
+    """Отсутстует ключ homework_status."""
 
     pass

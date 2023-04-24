@@ -42,13 +42,11 @@ HOMEWORK_VERDICTS = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
-globals()['TELEGRAM_TOKEN']
-
 
 def check_tokens():
     """ПРОВЕРЯЕМ ДОСТУПНОСТЬ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ."""
     tokens = ['PRACTICUM_TOKEN', 'TELEGRAM_TOKEN', 'TELEGRAM_CHAT_ID']
-    missing_tokens = [key for key in tokens if globals().get(key) is None]
+    missing_tokens = [key for key in tokens if not globals().get(key)]
     if missing_tokens:
         logger.critical(f'Отсутствует переменная окружения! {missing_tokens}')
         raise SystemExit('Проверь токены!')
@@ -71,8 +69,8 @@ def get_api_answer(timestamp):
         response = requests.get(ENDPOINT, headers=HEADERS, params=params)
         if response.status_code != HTTPStatus.OK:
             raise HttpError('Код ответа != 200.')
-        if not response.json():
-            raise JsonError('Проблемы с json форматом')
+    except requests.JSONDecodeError as json_error:
+        raise JsonError('Ошибка JSON') from json_error
     except requests.RequestException as request_error:
         raise ApiError('Ошибка подключения к API') from request_error
     return response.json()
@@ -83,14 +81,15 @@ def check_response(response):
     if not isinstance(response, dict):
         raise TypeError('Ответ не ввиде словаря!')
     homeworks = response.get('homeworks')
-    current_dates = response.get('current_date')
+    current_date = response.get('current_date')
     if homeworks is None:
-        raise ValueError('Отсутсвует значение Homeworks')
-    if current_dates is None:
-        raise CurrentDateError
+        raise KeyError('Отсутсвует значение Homeworks')
+    if current_date is None:
+        raise CurrentDateError('Отсутствует ключ "current_dates"'
+                               'или ответ не ввиде числа.')
     if not isinstance(homeworks, list):
         raise TypeError('Ответ не ввиде списка!')
-    if not isinstance(current_dates, int):
+    if not isinstance(current_date, int):
         raise CurrentDateError('Отсутствует ключ "current_dates"'
                                'или ответ не ввиде числа.')
     return homeworks
@@ -98,9 +97,9 @@ def check_response(response):
 
 def parse_status(homework: dict) -> str:
     """ИЗВЛЕКАЕТ СТАТУС ДОМАШНЕЙ РАБОТЫ."""
-    if homework.get('homework_name') is None:
-        raise KeyError('Отсутствует ключ "homework_name"')
     homework_name = homework.get('homework_name')
+    if homework_name is None:
+        raise KeyError('Отсутствует ключ "homework_name"')
 
     homework_status = homework.get('status')
     if 'status' not in homework:
@@ -121,7 +120,6 @@ def main():
     while True:
         try:
             response = get_api_answer(timestamp)
-            timestamp = response.get('current_date', timestamp)
             homeworks = check_response(response)
             if homeworks:
                 homework = homeworks[0]
@@ -129,11 +127,11 @@ def main():
             else:
                 status = 'Нет изменений в статусе работы'
             if status != old_message:
+                timestamp = response.get('current_date', timestamp)
                 old_message = status
                 send_message(bot, status)
             else:
                 logger.debug('Нет изменений в статусе работы')
-                timestamp = int(time.time())
         except CurrentDateError:
             logger.error(CurrentDateError)
         except Exception as error:

@@ -69,11 +69,11 @@ def get_api_answer(timestamp):
         response = requests.get(ENDPOINT, headers=HEADERS, params=params)
         if response.status_code != HTTPStatus.OK:
             raise HttpError('Код ответа != 200.')
+        return response.json()
     except requests.JSONDecodeError as json_error:
         raise JsonError('Ошибка JSON') from json_error
     except requests.RequestException as request_error:
         raise ApiError('Ошибка подключения к API') from request_error
-    return response.json()
 
 
 def check_response(response):
@@ -121,19 +121,23 @@ def main():
         try:
             response = get_api_answer(timestamp)
             homeworks = check_response(response)
+            current_date = response.get('current_date')
             if homeworks:
                 homework = homeworks[0]
                 status = parse_status(homework)
+
             else:
                 status = 'Нет изменений в статусе работы'
-            if status != old_message:
+            if current_date:
                 timestamp = response.get('current_date', timestamp)
+            if status != old_message:
                 old_message = status
                 send_message(bot, status)
             else:
                 logger.debug('Нет изменений в статусе работы')
         except CurrentDateError:
-            logger.error(CurrentDateError)
+            raise CurrentDateError('Отсутствует ключ "current_dates"'
+                                   'или ответ не ввиде числа.')
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             if message != old_message:

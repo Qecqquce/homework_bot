@@ -90,8 +90,7 @@ def check_response(response):
     if not isinstance(homeworks, list):
         raise TypeError('Ответ не ввиде списка!')
     if not isinstance(current_date, int):
-        raise CurrentDateError('Отсутствует ключ "current_dates"'
-                               'или ответ не ввиде числа.')
+        raise CurrentDateError('Значение "current_date" не является "int"')
     return homeworks
 
 
@@ -133,8 +132,7 @@ def main():
             else:
                 logger.debug('Нет изменений в статусе работы')
         except CurrentDateError:
-            logger.error('Отсутствует ключ "current_dates"'
-                         'или ответ не ввиде числа.')
+            logger.error
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             if message != old_message:

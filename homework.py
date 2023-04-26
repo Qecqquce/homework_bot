@@ -121,23 +121,20 @@ def main():
         try:
             response = get_api_answer(timestamp)
             homeworks = check_response(response)
-            current_date = response.get('current_date')
+            timestamp = response.get('current_date', timestamp)
             if homeworks:
                 homework = homeworks[0]
                 status = parse_status(homework)
-
             else:
                 status = 'Нет изменений в статусе работы'
-            if current_date:
-                timestamp = response.get('current_date', timestamp)
             if status != old_message:
                 old_message = status
                 send_message(bot, status)
             else:
                 logger.debug('Нет изменений в статусе работы')
         except CurrentDateError:
-            raise CurrentDateError('Отсутствует ключ "current_dates"'
-                                   'или ответ не ввиде числа.')
+            logger.error('Отсутствует ключ "current_dates"'
+                         'или ответ не ввиде числа.')
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             if message != old_message:

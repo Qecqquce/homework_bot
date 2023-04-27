@@ -131,8 +131,8 @@ def main():
                 send_message(bot, status)
             else:
                 logger.debug('Нет изменений в статусе работы')
-        except CurrentDateError:
-            logger.error
+        except CurrentDateError as error:
+            logger.error(f'Ошибка {error}')
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             if message != old_message:
